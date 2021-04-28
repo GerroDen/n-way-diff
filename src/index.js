@@ -36,11 +36,11 @@ async function diff({rootDir, baseDir}) {
 		if (result.distinct) {
 			this.log(warnBg(`! ${dirName}`));
 			for (let dirDiff of result.diffSet) {
-				if (dirDiff.type1 === "missing") {
+				if (dirDiff.type1 === "missing" && dirDiff.type2 === "file") {
 					const filePath = path.resolve(dirDiff.relativePath, dirDiff.name2);
 					this.log(error(`  - ${filePath}`));
 				} else {
-					if (dirDiff.type2 === "missing") {
+					if (dirDiff.type2 === "missing" && dirDiff.type1 === "file") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
 						this.log(warn(`  + ${filePath}`));
 					} else if (dirDiff.reason === "different-content") {
