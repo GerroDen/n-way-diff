@@ -3,6 +3,7 @@
 	"version": "0.1.0",
 	"description": "Need more than 2-way or 3-way diff? This is n-way diff!",
 	"main": "src/index.js",
+	"bin": "src/index.js",
 	"repository": {
 		"type": "git",
 		"url": "git+https://github.com/GerroDen/n-way-diff.git"
@@ -18,7 +19,8 @@
 		"diff": "^5.0.0",
 		"dir-compare": "^3.1.5",
 		"glob": "^7.1.6",
-		"terminal-kit": "^2.0.7"
+		"terminal-kit": "^2.0.7",
+		"yargs": "^16.2.0"
 	},
 	"devDependencies": {
 		"eslint": "^7.25.0"

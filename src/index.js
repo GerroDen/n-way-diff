@@ -1,4 +1,7 @@
+#!/usr/bin/env node
+const fs = require("fs");
 const path = require("path");
+const yargs = require("yargs");
 const terminalKit = require("terminal-kit");
 const glob = require("glob");
 const {diff} = require("./diff");
@@ -9,7 +12,15 @@ const error = term.brightRed;
 const ok = term.brightGreen;
 const warn = term.brightYellow;
 const warnBg = term.bgYellow;
-const [, , rootDir] = process.argv;
+const {_: [rootDir]} = yargs(process.argv.slice(2))
+	.usage("Usage: $0 <rootDir>")
+	.demandCommand(1)
+	.check((argv) => {
+		fs.accessSync(argv._[0]);
+		return true;
+	})
+	.help()
+	.argv;
 
 let subDirs;
 let baseDir;
@@ -43,7 +54,7 @@ function render() {
 		});
 		return;
 	}
-	info(`Showing diff between directories and files in "${rootDir}" compared to "${baseDir}"`);
+	info(`Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
 	term.nextLine(2);
 	info("Show diffs with:");
 	const diffDirNames = diffSet.map(diffEntry => diffEntry.basename);
