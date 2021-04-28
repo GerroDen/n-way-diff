@@ -35,8 +35,9 @@ async function compareContent(dirDiff) {
 }
 
 class DirDiff {
-	constructor({path, dirDiff, fileDiffs}) {
-		this.path = path;
+	constructor({path: _path, dirDiff, fileDiffs}) {
+		this.path = _path;
+		this.basename = path.basename(_path);
 		this.dirDiff = dirDiff;
 		this.fileDiffs = fileDiffs;
 	}
