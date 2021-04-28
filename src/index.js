@@ -42,13 +42,13 @@ async function diff({rootDir, baseDir}) {
 				} else {
 					if (dirDiff.type2 === "missing" && dirDiff.type1 === "file") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
-						this.log(warn(`  + ${filePath}`));
+						this.log(ok(`  + ${filePath}`));
 					} else if (dirDiff.reason === "different-content") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
 						this.log(warn(`  Δ ${filePath}`));
 						const content1 = await fs.readFile(path.resolve(dirDiff.path1, dirDiff.name1), {encoding: "utf8"});
 						const content2 = await fs.readFile(path.resolve(dirDiff.path2, dirDiff.name2), {encoding: "utf8"});
-						const fileDiffs = Diff.diffTrimmedLines(content1, content2);
+						const fileDiffs = Diff.diffTrimmedLines(content2, content1);
 						for (const fileDiff of fileDiffs) {
 							let diffValue = fileDiff.value.replace(/\n$/, "");
 							if (fileDiff.removed) {
