@@ -1,88 +1,89 @@
 const path = require("path");
-const chalk = require("chalk");
-const Vorpal = require("vorpal");
+const terminalKit = require("terminal-kit");
 const glob = require("glob");
 const {diff} = require("./diff");
 
-const info = chalk.blueBright;
-const error = chalk.redBright;
-const ok = chalk.greenBright;
-const warn = chalk.yellowBright;
-const warnBg = chalk.bgYellow;
+const term = terminalKit.terminal;
+const info = term.brightBlue;
+const error = term.brightRed;
+const ok = term.brightGreen;
+const warn = term.brightYellow;
+const warnBg = term.bgYellow;
+const [, , rootDir] = process.argv;
 
-const vorpal = Vorpal();
-vorpal.default("<rootDir>")
-	.action(action);
-vorpal.delimiter("").show().parse(process.argv);
+let subDirs;
+let baseDir;
+let diffSet;
+let dirChoiceIndex;
+let dirChoice;
 
-async function action({rootDir, baseDir}) {
-	try {
-		const subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
-		baseDir = await this.prompt([{
-			type: "list",
-			name: "baseDir",
-			message: "Choose a base directory",
-			choices: subDirs,
-		}]).then(answers => answers.baseDir);
-		this.log(info(`Showing diff between directories and files in "${rootDir}" compared to "${baseDir}"`));
-		const diffSet = await diff({rootDir, baseDir});
-		let quit = false;
-		while (!quit) {
-			const {dirChoice} = await this.prompt([{
-				type: "list",
-				name: "dirChoice",
-				message: "Show diffs with",
-				choices: diffSet.map(diffEntry => diffEntry.basename).concat([">all", ">quit"]),
-			}]);
-			if (dirChoice === ">quit") {
-				quit = true;
-			} else {
-				const displayedDiffSet = (dirChoice === ">all")
-					? diffSet
-					: diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
-				render.call(this, displayedDiffSet);
-			}
-		}
-	} catch (e) {
-		this.log(error("Error:"), e);
+term.fullscreen();
+term.on("key", (name) => {
+	if (name === "q") {
+		term.clear();
+		process.exit();
 	}
-	// await new Promise((resolve) => {
-	// 	let count = 0;
-	// 	setInterval(() => {
-	// 		vorpal.ui.redraw(`hi ${++count}`);
-	// 	}, 200);
-	// 	setTimeout(resolve, 10000);
-	// });
+});
+
+try {
+	subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
+	render();
+} catch (e) {
+	term.error("Error:", e);
 }
 
-function render(diffSet) {
-	for (const diffEntry of diffSet) {
+function render() {
+	term.clear();
+	if (!baseDir) {
+		info(`Choose the base directory in "${rootDir}":`);
+		term.singleLineMenu(subDirs, {y: 2}, async (error, response) => {
+			baseDir = response.selectedText;
+			diffSet = await diff({rootDir, baseDir});
+			render();
+		});
+		return;
+	}
+	info(`Showing diff between directories and files in "${rootDir}" compared to "${baseDir}"`);
+	term.nextLine(2);
+	info("Show diffs with:");
+	const diffDirNames = diffSet.map(diffEntry => diffEntry.basename);
+	term.singleLineMenu(diffDirNames, {selectedIndex: dirChoiceIndex}, async (error, response) => {
+		dirChoiceIndex = response.selectedIndex;
+		dirChoice = response.selectedText;
+		render();
+	});
+	if (!dirChoice) {
+		return;
+	}
+	term.nextLine(2);
+	const displayedDiffSet = diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
+	for (const diffEntry of displayedDiffSet) {
 		const dirName = diffEntry.basename;
 		const result = diffEntry.dirDiff;
 		if (result.same) {
-			this.log(ok(`${dirName} ✔`));
+			ok(`${dirName} ✔`).nextLine();
 		}
 		if (result.distinct) {
-			this.log(warnBg(`! ${dirName}`));
+			warnBg(`! ${dirName}`).nextLine();
 			for (let dirDiff of result.diffSet) {
 				if (dirDiff.type1 === "missing" && dirDiff.type2 === "file") {
 					const filePath = path.resolve(dirDiff.relativePath, dirDiff.name2);
-					this.log(error(`  - ${filePath}`));
+					error(`- ${filePath}`).nextLine();
 				} else {
 					if (dirDiff.type2 === "missing" && dirDiff.type1 === "file") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
-						this.log(ok(`  + ${filePath}`));
+						ok(`+ ${filePath}`).nextLine();
 					} else if (dirDiff.reason === "different-content") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
-						this.log(warn(`  Δ ${filePath}`));
+						warn(`Δ ${filePath}`).nextLine();
 						for (const fileDiff of diffEntry.fileDiffs) {
 							let diffValue = fileDiff.value.replace(/\n$/, "");
 							if (fileDiff.removed) {
-								diffValue = diffValue.replace(/^/gm, "    - ");
-								this.log(error(diffValue));
+								diffValue = diffValue.replace(/^/gm, "  - ");
+								error(diffValue).nextLine();
 							} else if (fileDiff.added) {
-								diffValue = diffValue.replace(/^/gm, "    + ");
-								this.log(ok(diffValue));
+								diffValue = diffValue.replace(/^/gm, "  + ");
+								ok(diffValue).nextLine();
 							}
 						}
 					}
