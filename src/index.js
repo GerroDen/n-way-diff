@@ -1,10 +1,7 @@
-const fs = require("fs").promises;
-const dircompare = require("dir-compare");
-const Diff = require("diff");
-const glob = require("glob");
+const path = require("path");
 const chalk = require("chalk");
 const Vorpal = require("vorpal");
-const path = require("path");
+const {diff} = require("./diff");
 
 const info = chalk.blueBright;
 const error = chalk.redBright;
@@ -14,22 +11,23 @@ const warnBg = chalk.bgYellow;
 
 const vorpal = Vorpal();
 vorpal.default("<rootDir> <baseDir>")
-	.action(diff);
+	.action(action);
 vorpal.parse(process.argv);
 
-async function diff({rootDir, baseDir}) {
+async function action({rootDir, baseDir}) {
 	this.log(info(`Showing diff between directories and files in ${rootDir} compared to "${baseDir}"`));
-	const basePath = path.resolve(rootDir, baseDir);
 	try {
-		await fs.access(basePath);
+		const diffSet = await diff({rootDir, baseDir});
+		render.call(this, diffSet);
 	} catch (e) {
-		this.log(error(`Base directory "${basePath}" does not exist`));
-		return;
+		this.log(error("Error:"), e);
 	}
-	const subDirs = glob.sync(`${rootDir}/*/`, {absolute: true}).filter(dir => !dir.endsWith(baseDir));
-	for (const subDir of subDirs) {
-		const dirName = path.basename(subDir);
-		const result = await dircompare.compare(basePath, subDir, {compareContent: true});
+}
+
+function render(diffSet) {
+	for (const diffEntry of diffSet) {
+		const dirName = path.basename(diffEntry.path);
+		const result = diffEntry.dirDiff;
 		if (result.same) {
 			this.log(ok(`${dirName} ✔`));
 		}
@@ -46,10 +44,7 @@ async function diff({rootDir, baseDir}) {
 					} else if (dirDiff.reason === "different-content") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
 						this.log(warn(`  Δ ${filePath}`));
-						const content1 = await fs.readFile(path.resolve(dirDiff.path1, dirDiff.name1), {encoding: "utf8"});
-						const content2 = await fs.readFile(path.resolve(dirDiff.path2, dirDiff.name2), {encoding: "utf8"});
-						const fileDiffs = Diff.diffTrimmedLines(content2, content1);
-						for (const fileDiff of fileDiffs) {
+						for (const fileDiff of diffEntry.fileDiffs) {
 							let diffValue = fileDiff.value.replace(/\n$/, "");
 							if (fileDiff.removed) {
 								diffValue = diffValue.replace(/^/gm, "    - ");
