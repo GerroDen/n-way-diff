@@ -4,4 +4,7 @@ module.exports = {
 		node: true,
 		es2020: true,
 	},
+	ecmaFeatures: {
+		impliedStrict: true,
+	},
 };
