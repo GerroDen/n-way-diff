@@ -2,6 +2,7 @@ const path = require("path");
 const blessed = require("blessed");
 const glob = require("glob");
 const {diff} = require("./diff");
+const mitt = require("mitt");
 
 const info = (content) => blessed.text({fg: "lightblue", content});
 const error = (content) => blessed.text({fg: "lightred", content});
@@ -10,10 +11,14 @@ const warn = (content) => blessed.text({fg: "lightyellow", content});
 const warnBg = (content) => blessed.text({bg: "lightyellow", content});
 const menuStyle = {selected: {bg: "lightgray", fg: "black"}, item: {fg: "lightgray"}};
 
-function terminal(rootDir) {
+const selectBaseDir = "selectBaseDir";
+const selectDiffEntry = "selectDiffEntry";
+
+function terminal({rootDir, debug}) {
 	let subDirs;
 	let baseDir;
 	let diffSet;
+	let dirChoiceIndex;
 	let dirChoice;
 
 	const screen = blessed.screen({
@@ -24,72 +29,118 @@ function terminal(rootDir) {
 	screen.append(titleLine);
 	const baseDirSelect = blessed.listbar({top: 2, style: menuStyle, autoCommandKeys: true});
 	screen.append(baseDirSelect);
-	blessed.box({scrollable: true, tags: true});
 	const diffDirSelect = blessed.listbar({top: 4, style: menuStyle});
 	screen.key("right", () => {
+		if (!diffSet) return;
+		dirChoiceIndex = Math.min(diffSet.length, dirChoiceIndex+1);
 		diffDirSelect.moveRight(1);
 		screen.render();
 	});
 	screen.key("left", () => {
+		if (!diffSet) return;
+		dirChoiceIndex = Math.max(0, dirChoiceIndex-1);
 		diffDirSelect.moveLeft(1);
 		screen.render();
 	});
+	screen.key("enter", () => {
+		if (!diffSet) return;
+		diffDirSelect.selectTab(dirChoiceIndex);
+		screen.render();
+	});
 	screen.append(diffDirSelect);
+	const diffLine = blessed.line({top: 6, orientation: "horizontal", hidden: true});
+	screen.append(diffLine);
+	const diffOut = blessed.box({
+		top: 7,
+		scrollable: true,
+		alwaysScroll: true,
+		tags: true,
+		scrollbar: true,
+	});
+	screen.key("up", () => {
+		diffOut.scroll(1);
+	});
+	screen.key("down", () => {
+		diffOut.scroll(-1);
+	});
+	screen.append(diffOut);
 	screen.render();
 
-	try {
+	const bus = mitt();
+	showErrors(() => {
 		subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
 		titleLine.setContent(`{light-blue-fg}Choose the base directory in "${rootDir}":`);
 		baseDirSelect.setItems(Object.fromEntries(subDirs.map(dirname => [
 			dirname,
-			async () => {
-				baseDir = dirname;
-				titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
-				diffSet = await diff({rootDir, baseDir});
-				diffDirSelect.setItems(Object.fromEntries(diffSet.map(diffEntry => [
-					diffEntry.basename,
-					() => {
-						dirChoice = diffEntry.basename;
-						screen.render();
-					},
-				])));
-				screen.render();
-			}
+			() => bus.emit(selectBaseDir, dirname),
 		])));
-	} catch (e) {
-		titleLine.setContent(`{light-red-fg}Error: ${e}. Exit with q!`);
+		screen.render();
+	});
+	bus.on(selectBaseDir, async (dirname) => {
+		baseDir = dirname;
+		titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
+		diffSet = await diff({rootDir, baseDir});
+		diffDirSelect.setItems(Object.fromEntries(diffSet.map(diffEntry => [
+			diffEntry.basename,
+			() => bus.emit(selectDiffEntry, diffEntry),
+		])));
+		dirChoiceIndex = 0;
+		screen.render();
+	});
+	bus.on(selectDiffEntry, (diffEntry) => {
+		dirChoice = diffEntry.basename;
+		diffLine.hidden = false;
+		const displayedDiffSet = diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
+		if (debug) {
+			diffOut.setContent(JSON.stringify(displayedDiffSet, null, 2));
+		} else {
+			const content = render(displayedDiffSet);
+			diffOut.setContent(`{light-blue-fg}Show diffs with ${dirChoice}:\n${content}`);
+		}
+	});
+
+	/** @param {Function()} run */
+	function showErrors(run) {
+		try {
+			run();
+		} catch (e) {
+			titleLine.setContent(`{light-red-fg}Error: ${e}. Exit with q!`);
+		}
 	}
 
-	function render() {
-		info("Show diffs with:");
-		const displayedDiffSet = diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
+	/**
+	 * @param {object[]} displayedDiffSet 
+	 * @returns {string}
+	 */
+	function render(displayedDiffSet) {
+		let content = "";
 		for (const diffEntry of displayedDiffSet) {
 			const dirName = diffEntry.basename;
 			const result = diffEntry.dirDiff;
 			if (result.same) {
-				ok(`${dirName} ✔`).nextLine();
+				content += `{light-green-fg}${dirName} ✔{/}\n`;
 			}
 			if (result.distinct) {
-				warnBg(`! ${dirName}`).nextLine();
+				content += `{yellow-bg}{black-fg}! ${dirName}{/}\n`;
 				for (let dirDiff of result.diffSet) {
 					if (dirDiff.type1 === "missing" && dirDiff.type2 === "file") {
 						const filePath = path.resolve(dirDiff.relativePath, dirDiff.name2);
-						error(`- ${filePath}`).nextLine();
+						content += `{light-red-fg}- ${filePath}{/}\n`;
 					} else {
 						if (dirDiff.type2 === "missing" && dirDiff.type1 === "file") {
 							const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
-							ok(`+ ${filePath}`).nextLine();
+							content += `{light-red-fg}+ ${filePath}{/}\n`;
 						} else if (dirDiff.reason === "different-content") {
 							const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
-							warn(`Δ ${filePath}`).nextLine();
+							content += `{yellow-bg}{black-fg}Δ ${filePath}{/}\n`;
 							for (const fileDiff of diffEntry.fileDiffs) {
 								let diffValue = fileDiff.value.replace(/\n$/, "");
 								if (fileDiff.removed) {
 									diffValue = diffValue.replace(/^/gm, "  - ");
-									error(diffValue).nextLine();
+									content += `{light-red-fg}${diffValue}{/}`;
 								} else if (fileDiff.added) {
 									diffValue = diffValue.replace(/^/gm, "  + ");
-									ok(diffValue).nextLine();
+									content += `{light-green-fg}${diffValue}{/}\n`;
 								}
 							}
 						}
@@ -97,6 +148,7 @@ function terminal(rootDir) {
 				}
 			}
 		}
+		return content;
 	}
 }
 
