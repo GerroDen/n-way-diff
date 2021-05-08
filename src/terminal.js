@@ -1,61 +1,67 @@
 const path = require("path");
-const terminalKit = require("terminal-kit");
+const blessed = require("blessed");
 const glob = require("glob");
 const {diff} = require("./diff");
 
-const term = terminalKit.terminal;
-const info = term.brightBlue;
-const error = term.brightRed;
-const ok = term.brightGreen;
-const warn = term.brightYellow;
-const warnBg = term.bgYellow;
+const info = (content) => blessed.text({fg: "lightblue", content});
+const error = (content) => blessed.text({fg: "lightred", content});
+const ok = (content) => blessed.text({fg: "lightgreen", content});
+const warn = (content) => blessed.text({fg: "lightyellow", content});
+const warnBg = (content) => blessed.text({bg: "lightyellow", content});
+const menuStyle = {selected: {bg: "lightgray", fg: "black"}, item: {fg: "lightgray"}};
 
 function terminal(rootDir) {
 	let subDirs;
 	let baseDir;
 	let diffSet;
-	let dirChoiceIndex;
 	let dirChoice;
 
-	term.fullscreen();
-	term.on("key", (name) => {
-		if (name === "q") {
-			term.clear();
-			process.exit();
-		}
+	const screen = blessed.screen({
+		smartCSR: true,
 	});
+	screen.key("q", () => process.exit());
+	const titleLine = blessed.text({tags: true});
+	screen.append(titleLine);
+	const baseDirSelect = blessed.listbar({top: 2, style: menuStyle, autoCommandKeys: true});
+	screen.append(baseDirSelect);
+	blessed.box({scrollable: true, tags: true});
+	const diffDirSelect = blessed.listbar({top: 4, style: menuStyle});
+	screen.key("right", () => {
+		diffDirSelect.moveRight(1);
+		screen.render();
+	});
+	screen.key("left", () => {
+		diffDirSelect.moveLeft(1);
+		screen.render();
+	});
+	screen.append(diffDirSelect);
+	screen.render();
 
 	try {
 		subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
-		render();
+		titleLine.setContent(`{light-blue-fg}Choose the base directory in "${rootDir}":`);
+		baseDirSelect.setItems(Object.fromEntries(subDirs.map(dirname => [
+			dirname,
+			async () => {
+				baseDir = dirname;
+				titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
+				diffSet = await diff({rootDir, baseDir});
+				diffDirSelect.setItems(Object.fromEntries(diffSet.map(diffEntry => [
+					diffEntry.basename,
+					() => {
+						dirChoice = diffEntry.basename;
+						screen.render();
+					},
+				])));
+				screen.render();
+			}
+		])));
 	} catch (e) {
-		term.error("Error:", e);
+		titleLine.setContent(`{light-red-fg}Error: ${e}. Exit with q!`);
 	}
 
 	function render() {
-		term.clear();
-		if (!baseDir) {
-			info(`Choose the base directory in "${rootDir}":`);
-			term.singleLineMenu(subDirs, {y: 2}, async (error, response) => {
-				baseDir = response.selectedText;
-				diffSet = await diff({rootDir, baseDir});
-				render();
-			});
-			return;
-		}
-		info(`Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
-		term.nextLine(2);
 		info("Show diffs with:");
-		const diffDirNames = diffSet.map(diffEntry => diffEntry.basename);
-		term.singleLineMenu(diffDirNames, {selectedIndex: dirChoiceIndex}, async (error, response) => {
-			dirChoiceIndex = response.selectedIndex;
-			dirChoice = response.selectedText;
-			render();
-		});
-		if (!dirChoice) {
-			return;
-		}
-		term.nextLine(2);
 		const displayedDiffSet = diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
 		for (const diffEntry of displayedDiffSet) {
 			const dirName = diffEntry.basename;
