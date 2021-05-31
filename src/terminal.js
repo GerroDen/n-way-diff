@@ -21,13 +21,19 @@ function terminal({rootDir, debug}) {
 	const screen = blessed.screen({
 		smartCSR: true,
 	});
-	screen.key("escape", () => process.exit());
+	screen.on("keypress", (ch, key) => {
+		if (key.name === "escape" || (key.name === "q" && key.shift)) {
+			process.exit();
+		}
+	});
 	const titleLine = blessed.text({tags: true});
 	screen.append(titleLine);
 	const baseDirSelect = blessed.listbar({
-		top: 2, 
+		top: 2,
 		style: menuStyle,
 		mouse: true,
+		label: "Basedir: <q/e>",
+		padding: {left: 17},
 	});
 	screen.key("e", () => {
 		if (!subDirs) return;
@@ -43,9 +49,11 @@ function terminal({rootDir, debug}) {
 	});
 	screen.append(baseDirSelect);
 	const diffDirSelect = blessed.listbar({
-		top: 4, 
+		top: 4,
 		style: menuStyle,
 		mouse: true,
+		label: "Subdir:  <a/d>",
+		padding: {left: 17},
 	});
 	screen.key("d", () => {
 		if (!diffSet) return;
@@ -61,8 +69,8 @@ function terminal({rootDir, debug}) {
 	});
 	screen.append(diffDirSelect);
 	const diffLine = blessed.line({
-		top: 6, 
-		orientation: "horizontal", 
+		top: 6,
+		orientation: "horizontal",
 		hidden: true,
 	});
 	screen.append(diffLine);
@@ -98,7 +106,7 @@ function terminal({rootDir, debug}) {
 	const bus = mitt();
 	showErrors(() => {
 		subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
-		titleLine.setContent(`{light-blue-fg}Choose the base directory in "${rootDir}":`);
+		titleLine.setContent(`{light-blue-fg}Choose the base directory in "${rootDir}". Quit with <Q>!`);
 		baseDirSelect.setItems(subDirs.map(dirname => ({
 			text: dirname,
 			callback: () => bus.emit(selectBaseDir, dirname),
@@ -107,7 +115,7 @@ function terminal({rootDir, debug}) {
 	});
 	bus.on(selectBaseDir, async (dirname) => {
 		const baseDir = dirname;
-		titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
+		titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with <Q>!`);
 		diffSet = await diff({rootDir, baseDir});
 		diffDirSelect.setItems(Object.fromEntries(diffSet.map(diffEntry => [
 			diffEntry.basename,
@@ -138,7 +146,7 @@ function terminal({rootDir, debug}) {
 	}
 
 	/**
-	 * @param {object[]} displayedDiffSet 
+	 * @param {object[]} displayedDiffSet
 	 * @returns {string}
 	 */
 	function render(displayedDiffSet) {
