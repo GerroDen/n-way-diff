@@ -17,29 +17,29 @@ async function diff({rootDir, baseDir}) {
 
 async function compareDirectory({basePath, path}) {
 	const dirDiff = await dircompare.compare(basePath, path, {compareContent: true});
-	const fileDiffs = await compareContent(dirDiff);
+	for (const dirDiffSet of dirDiff.diffSet) {
+		dirDiffSet.fileDiffs = await compareContent(dirDiffSet);
+	}
 	return new DirDiff({
 		path,
 		dirDiff,
-		fileDiffs,
 	});
 }
 
-async function compareContent(dirDiff) {
-	if (dirDiff.distinct && dirDiff.reason === "different-content") {
-		const content1 = await fs.readFile(path.resolve(dirDiff.path1, dirDiff.name1), {encoding: "utf8"});
-		const content2 = await fs.readFile(path.resolve(dirDiff.path2, dirDiff.name2), {encoding: "utf8"});
+async function compareContent(dirDiffSet) {
+	if (dirDiffSet.state === "distinct" && dirDiffSet.reason === "different-content") {
+		const content1 = await fs.readFile(path.resolve(dirDiffSet.path1, dirDiffSet.name1), {encoding: "utf8"});
+		const content2 = await fs.readFile(path.resolve(dirDiffSet.path2, dirDiffSet.name2), {encoding: "utf8"});
 		return Diff.diffTrimmedLines(content2, content1);
 	}
 	return [];
 }
 
 class DirDiff {
-	constructor({path: _path, dirDiff, fileDiffs}) {
+	constructor({path: _path, dirDiff}) {
 		this.path = _path;
 		this.basename = path.basename(_path);
 		this.dirDiff = dirDiff;
-		this.fileDiffs = fileDiffs;
 	}
 }
 

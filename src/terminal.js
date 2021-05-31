@@ -158,11 +158,11 @@ function terminal({rootDir, debug}) {
 						} else if (dirDiff.reason === "different-content") {
 							const filePath = path.resolve(dirDiff.relativePath, dirDiff.name1);
 							content += `{yellow-bg}{black-fg}Δ ${filePath}{/}\n`;
-							for (const fileDiff of diffEntry.fileDiffs) {
+							for (const fileDiff of dirDiff.fileDiffs) {
 								let diffValue = fileDiff.value.replace(/\n$/, "");
 								if (fileDiff.removed) {
 									diffValue = diffValue.replace(/^/gm, "  - ");
-									content += `{light-red-fg}${diffValue}{/}`;
+									content += `{light-red-fg}${diffValue}{/}\n`;
 								} else if (fileDiff.added) {
 									diffValue = diffValue.replace(/^/gm, "  + ");
 									content += `{light-green-fg}${diffValue}{/}\n`;
