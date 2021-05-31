@@ -16,22 +16,30 @@ const selectDiffEntry = "selectDiffEntry";
 
 function terminal({rootDir, debug}) {
 	let subDirs;
-	let baseDir;
 	let diffSet;
-	let dirChoiceIndex;
-	let dirChoice;
 
 	const screen = blessed.screen({
 		smartCSR: true,
 	});
-	screen.key("q", () => process.exit());
+	screen.key("escape", () => process.exit());
 	const titleLine = blessed.text({tags: true});
 	screen.append(titleLine);
 	const baseDirSelect = blessed.listbar({
 		top: 2, 
-		style: menuStyle, 
-		autoCommandKeys: true,
+		style: menuStyle,
 		mouse: true,
+	});
+	screen.key("e", () => {
+		if (!subDirs) return;
+		baseDirSelect.moveRight(1);
+		baseDirSelect.selectTab(baseDirSelect.selected);
+		screen.render();
+	});
+	screen.key("q", () => {
+		if (!subDirs) return;
+		baseDirSelect.moveLeft(1);
+		baseDirSelect.selectTab(baseDirSelect.selected);
+		screen.render();
 	});
 	screen.append(baseDirSelect);
 	const diffDirSelect = blessed.listbar({
@@ -39,21 +47,16 @@ function terminal({rootDir, debug}) {
 		style: menuStyle,
 		mouse: true,
 	});
-	screen.key("right", () => {
+	screen.key("d", () => {
 		if (!diffSet) return;
-		dirChoiceIndex = Math.min(diffSet.length, dirChoiceIndex+1);
 		diffDirSelect.moveRight(1);
+		diffDirSelect.selectTab(diffDirSelect.selected);
 		screen.render();
 	});
-	screen.key("left", () => {
+	screen.key("a", () => {
 		if (!diffSet) return;
-		dirChoiceIndex = Math.max(0, dirChoiceIndex-1);
 		diffDirSelect.moveLeft(1);
-		screen.render();
-	});
-	screen.key("enter", () => {
-		if (!diffSet) return;
-		diffDirSelect.selectTab(dirChoiceIndex);
+		diffDirSelect.selectTab(diffDirSelect.selected);
 		screen.render();
 	});
 	screen.append(diffDirSelect);
@@ -71,20 +74,22 @@ function terminal({rootDir, debug}) {
 		scrollbar: true,
 		mouse: true,
 	});
-	screen.key("up", () => {
-		diffOut.scroll(-1);
-		screen.render();
-	});
-	screen.key("pageup", () => {
-		diffOut.scroll(-diffOut.height);
-		screen.render();
-	});
-	screen.key("down", () => {
-		diffOut.scroll(1);
-		screen.render();
-	});
-	screen.key("pagedown", () => {
-		diffOut.scroll(diffOut.height);
+	screen.on("keypress", (ch, key) => {
+		if (key.name === "w") {
+			if (key.shift) {
+				diffOut.scroll(-diffOut.height);
+			} else {
+				diffOut.scroll(-1);
+			}
+		} else if (key.name === "s") {
+			if (key.shift) {
+				diffOut.scroll(diffOut.height);
+			} else {
+				diffOut.scroll(1);
+			}
+		} else {
+			return;
+		}
 		screen.render();
 	});
 	screen.append(diffOut);
@@ -94,25 +99,24 @@ function terminal({rootDir, debug}) {
 	showErrors(() => {
 		subDirs = glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
 		titleLine.setContent(`{light-blue-fg}Choose the base directory in "${rootDir}":`);
-		baseDirSelect.setItems(Object.fromEntries(subDirs.map(dirname => [
-			dirname,
-			() => bus.emit(selectBaseDir, dirname),
-		])));
+		baseDirSelect.setItems(subDirs.map(dirname => ({
+			text: dirname,
+			callback: () => bus.emit(selectBaseDir, dirname),
+		})));
 		screen.render();
 	});
 	bus.on(selectBaseDir, async (dirname) => {
-		baseDir = dirname;
+		const baseDir = dirname;
 		titleLine.setContent(`{light-blue-fg}Showing diff between directories and files in "${rootDir}" compared to "${baseDir}". Quit with "q"!`);
 		diffSet = await diff({rootDir, baseDir});
 		diffDirSelect.setItems(Object.fromEntries(diffSet.map(diffEntry => [
 			diffEntry.basename,
 			() => bus.emit(selectDiffEntry, diffEntry),
 		])));
-		dirChoiceIndex = 0;
 		screen.render();
 	});
 	bus.on(selectDiffEntry, (diffEntry) => {
-		dirChoice = diffEntry.basename;
+		const dirChoice = diffEntry.basename;
 		diffLine.hidden = false;
 		const displayedDiffSet = diffSet.filter(diffEntry => diffEntry.basename === dirChoice);
 		if (debug) {
