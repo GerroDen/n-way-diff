@@ -27,9 +27,18 @@ function terminal({rootDir, debug}) {
 	screen.key("q", () => process.exit());
 	const titleLine = blessed.text({tags: true});
 	screen.append(titleLine);
-	const baseDirSelect = blessed.listbar({top: 2, style: menuStyle, autoCommandKeys: true});
+	const baseDirSelect = blessed.listbar({
+		top: 2, 
+		style: menuStyle, 
+		autoCommandKeys: true,
+		mouse: true,
+	});
 	screen.append(baseDirSelect);
-	const diffDirSelect = blessed.listbar({top: 4, style: menuStyle});
+	const diffDirSelect = blessed.listbar({
+		top: 4, 
+		style: menuStyle,
+		mouse: true,
+	});
 	screen.key("right", () => {
 		if (!diffSet) return;
 		dirChoiceIndex = Math.min(diffSet.length, dirChoiceIndex+1);
@@ -48,7 +57,11 @@ function terminal({rootDir, debug}) {
 		screen.render();
 	});
 	screen.append(diffDirSelect);
-	const diffLine = blessed.line({top: 6, orientation: "horizontal", hidden: true});
+	const diffLine = blessed.line({
+		top: 6, 
+		orientation: "horizontal", 
+		hidden: true,
+	});
 	screen.append(diffLine);
 	const diffOut = blessed.box({
 		top: 7,
@@ -56,12 +69,23 @@ function terminal({rootDir, debug}) {
 		alwaysScroll: true,
 		tags: true,
 		scrollbar: true,
+		mouse: true,
 	});
 	screen.key("up", () => {
-		diffOut.scroll(1);
+		diffOut.scroll(-1);
+		screen.render();
+	});
+	screen.key("pageup", () => {
+		diffOut.scroll(-diffOut.height);
+		screen.render();
 	});
 	screen.key("down", () => {
-		diffOut.scroll(-1);
+		diffOut.scroll(1);
+		screen.render();
+	});
+	screen.key("pagedown", () => {
+		diffOut.scroll(diffOut.height);
+		screen.render();
 	});
 	screen.append(diffOut);
 	screen.render();
@@ -97,6 +121,7 @@ function terminal({rootDir, debug}) {
 			const content = render(displayedDiffSet);
 			diffOut.setContent(`{light-blue-fg}Show diffs with ${dirChoice}:\n${content}`);
 		}
+		screen.render();
 	});
 
 	/** @param {Function()} run */
