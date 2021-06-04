@@ -19,6 +19,7 @@
 		"blessed": "^0.1.81",
 		"diff": "^5.0.0",
 		"dir-compare": "^3.3.0",
+		"fastify": "^3.17.0",
 		"glob": "^7.1.7",
 		"mitt": "^2.1.0",
 		"terminal-kit": "^2.1.2",
