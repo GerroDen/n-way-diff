@@ -1,27 +1,32 @@
-<template>
-  <img alt="Vue logo" src="./assets/logo.png" />
-  <HelloWorld msg="Hello Vue 3 + TypeScript + Vite" />
+<template>adasdasdasd23234324
+  <dropdown :options="subdirs" />
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue'
-import HelloWorld from './components/HelloWorld.vue'
+import axios from "axios"
+import { defineComponent, onMounted, ref } from "vue"
+import Dropdown from "primevue/dropdown"
 
 export default defineComponent({
-  name: 'App',
   components: {
-    HelloWorld
-  }
+    Dropdown,
+  },
+  setup() {
+    const subdirs = ref<object[]>([])
+
+    async function fetchSubdirs(): Promise<void> {
+      const {data} = await axios.get<object[]>("/subdirs")
+      subdirs.value = data
+    }
+
+    onMounted(fetchSubdirs)
+
+    return {
+      subdirs,
+    }
+  },
 })
 </script>
 
-<style>
-#app {
-  font-family: Avenir, Helvetica, Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  text-align: center;
-  color: #2c3e50;
-  margin-top: 60px;
-}
+<style lang="scss">
 </style>
