@@ -1,44 +1,44 @@
-const { glob } = require("glob");
-const path = require("path");
-const open = require("open");
+const { glob } = require("glob")
+const path = require("path")
 const fastify = require("fastify")({
-    logger: true
-});
-const { createServer: createViteServer } = require("vite");
+    logger: true,
+})
+const { createServer: createViteServer } = require("vite")
 
-function setupRouting({ rootDir }) {
-    fastify.get("/subdirs", async () => {
-        return glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir));
-    });
-    // fastify.get("dirdiff", async () => {});
-    // fastify.get("filediff", async () => {});
-    // fastify.get("file", async () => {});
-    // fastify.get("dir", async () => {});
+async function apiRouting(childServer, { rootDir }) {
+    childServer.get("/subdirs", async () => {
+        return glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir))
+    })
+    // childServer.get("dirdiff", async () => {})
+    // childServer.get("filediff", async () => {})
+    // childServer.get("file", async () => {})
+    // childServer.get("dir", async () => {})
 }
 
-function createServer({ rootDir }) {
+async function viteRouting(childServer) {
+    await fastify.register(require("middie"))
+    const vite = await createViteServer({
+        server: {
+            middlewareMode: "html",
+        },
+    })
+    childServer.use(vite.middlewares)
+}
+
+function createServer({ rootDir, port }) {
     async function start() {
-        await fastify.register(require('middie'));
-        const vite = await createViteServer({
-            base: "/web/",
-            server: {
-                middlewareMode: "html",
-            },
-        });
-        fastify.use(vite.middlewares);
-        setupRouting({ rootDir });
+        await fastify.register(apiRouting, { rootDir })
+        await viteRouting(fastify)
         try {
-            await fastify.listen(3000);
-            open("http://localhost:3000/web/");
+            await fastify.listen(port)
         } catch (e) {
-            fastify.log.error(e);
-            process.exit(1);
+            fastify.log.error(e)
+            process.exit(1)
         }
     }
-
     return {
         start,
     }
-};
+}
 
-exports.createServer = createServer;
+exports.createServer = createServer

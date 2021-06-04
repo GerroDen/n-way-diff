@@ -19,3 +19,8 @@ Lint with `eslint` and `npx`.
 ```
 npx eslint .
 ```
+
+Debug middlewares in serve mode.
+```
+DEBUG=connect:dispatcher ./src/index.js test --serve
+```
