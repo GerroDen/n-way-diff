@@ -1,9 +1,8 @@
 const { glob } = require("glob")
 const path = require("path")
-const fastify = require("fastify")({
-    logger: true,
-})
 const { createServer: createViteServer } = require("vite")
+const fastifyStatic = require("fastify-static");
+const fastify = require("fastify")
 
 async function apiRouting(childServer, { rootDir }) {
     childServer.get("/subdirs", async () => {
@@ -16,26 +15,37 @@ async function apiRouting(childServer, { rootDir }) {
 }
 
 async function viteRouting(childServer) {
-    await fastify.register(require("middie"))
+    /*
+    await childServer.register(require("middie"))
     const vite = await createViteServer({
         server: {
             middlewareMode: "html",
         },
     })
-    childServer.use(vite.middlewares)
+    childServer.use("/view", vite.middlewares)
+    */
+    /**/
+    childServer.register(fastifyStatic, {
+        root: path.resolve(__dirname, "../web/dist"),
+    })
+    /**/
 }
 
 function createServer({ rootDir, port }) {
     async function start() {
-        await fastify.register(apiRouting, { rootDir })
-        await viteRouting(fastify)
+        const server = fastify({
+            logger: true,
+        })
+        await server.register(apiRouting, { rootDir, prefix: "/api" })
+        await server.register(viteRouting)
         try {
-            await fastify.listen(port)
+            await server.listen(port)
         } catch (e) {
-            fastify.log.error(e)
+            server.log.error(e)
             process.exit(1)
         }
     }
+
     return {
         start,
     }

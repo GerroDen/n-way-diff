@@ -1,21 +1,19 @@
-<template>adasdasdasd23234324
-  <dropdown :options="subdirs" />
+<template>
+  <div>{{ subdirs }}</div>
 </template>
 
 <script lang="ts">
 import axios from "axios"
 import { defineComponent, onMounted, ref } from "vue"
-import Dropdown from "primevue/dropdown"
 
 export default defineComponent({
   components: {
-    Dropdown,
   },
   setup() {
-    const subdirs = ref<object[]>([])
+    const subdirs = ref<Array<object>>([])
 
     async function fetchSubdirs(): Promise<void> {
-      const {data} = await axios.get<object[]>("/subdirs")
+      const {data} = await axios.get<object[]>("/api/subdirs")
       subdirs.value = data
     }
 
