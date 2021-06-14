@@ -14,7 +14,7 @@
           </n-gi>
           <n-gi>
             <n-select
-              v-model:value="dirChoice"
+              v-model:value="otherDir"
               filterable
               placeholder="Other dir"
               :options="subdirOptions"
@@ -24,15 +24,27 @@
       </n-layout-header>
       <n-layout has-sider>
         <n-layout-sider content-style="padding: 12px">
-          tree
+          <template v-if="dirDiff">
+            <template v-if="dirDiff.same">
+              same {{ dirDiff.relativePath }} {{ dirDiff.name2 }}
+            </template>
+            <template v-else-if="dirDiff.distinct">
+              <div v-for="(diffSet, index) in dirDiff.diffSet" :key="index">
+                X {{ diffSet.relativePath }} {{ diffSet.name2 }}
+              </div>
+            </template>
+          </template>
         </n-layout-sider>
-        <n-layout-content :native-scrollbar="false" content-style="padding: 12px">
+        <n-layout-content
+          :native-scrollbar="false"
+          content-style="padding: 12px"
+        >
           <n-grid cols="2" x-gap="12">
             <n-gi>
               {{ baseDir }}
             </n-gi>
             <n-gi>
-              {{ dirChoice }}
+              {{ otherDir }}
             </n-gi>
           </n-grid>
         </n-layout-content>
@@ -43,7 +55,7 @@
 
 <script lang="ts">
 import axios from "axios";
-import { computed, defineComponent, onMounted, ref } from "vue";
+import { computed, defineComponent, onMounted, ref, watchEffect } from "vue";
 import {
   NConfigProvider,
   NGlobalStyle,
@@ -73,16 +85,30 @@ export default defineComponent({
   },
   setup() {
     const subdirs = ref<Array<object>>([]);
+    const dirDiff = ref<any>();
     const baseDir = ref<string>();
-    const dirChoice = ref<string>();
+    const otherDir = ref<string>();
 
     const subdirOptions = computed(() =>
       subdirs.value.map(dir => ({ label: dir, value: dir }))
     );
 
+    watchEffect(fetchDirDiff);
+
     async function fetchSubdirs(): Promise<void> {
       const { data } = await axios.get<object[]>("/api/subdirs");
       subdirs.value = data;
+    }
+
+    async function fetchDirDiff(): Promise<void> {
+      if (!baseDir.value || !otherDir.value) return;
+      const { data } = await axios.get<object>("/api/dirdiff", {
+        params: {
+          baseDir: baseDir.value,
+          otherDir: otherDir.value
+        }
+      });
+      dirDiff.value = data;
     }
 
     onMounted(fetchSubdirs);
@@ -91,7 +117,8 @@ export default defineComponent({
       darkTheme,
       subdirOptions,
       baseDir,
-      dirChoice
+      otherDir,
+      dirDiff
     };
   }
 });

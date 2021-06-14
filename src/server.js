@@ -3,15 +3,21 @@ const path = require("path")
 const { createServer: createViteServer } = require("vite")
 const fastifyStatic = require("fastify-static");
 const fastify = require("fastify")
+const dircompare = require("dir-compare");
 
 async function apiRouting(childServer, { rootDir }) {
     childServer.get("/subdirs", async () => {
         return glob.sync(`${rootDir}/*/`).map(subDir => path.basename(subDir))
     })
-    // childServer.get("dirdiff", async () => {})
-    // childServer.get("filediff", async () => {})
-    // childServer.get("file", async () => {})
-    // childServer.get("dir", async () => {})
+    childServer.get("/dirdiff", async (request) => {
+        const { baseDir, otherDir } = request.query;
+        const basePath = path.resolve(rootDir, baseDir);
+        const otherPath = path.resolve(rootDir, otherDir);
+        return await dircompare.compare(basePath, otherPath, {compareContent: true});
+    })
+    // childServer.get("/filediff", async () => {})
+    // childServer.get("/file", async () => {})
+    // childServer.get("/dir", async () => {})
 }
 
 async function viteRouting(childServer) {
